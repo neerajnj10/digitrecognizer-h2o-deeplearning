@@ -1,0 +1,224 @@
+
+digitrecognizer
+
+Neeraj
+
+December 27, 2015
+#install.packages("readr")
+library(readr)
+## Warning: package 'readr' was built under R version 3.2.3
+train <- read_csv("train.csv")
+test <- read_csv("test.csv")
+head(train[1:10])
+##   label pixel0 pixel1 pixel2 pixel3 pixel4 pixel5 pixel6 pixel7 pixel8
+## 1     1      0      0      0      0      0      0      0      0      0
+## 2     0      0      0      0      0      0      0      0      0      0
+## 3     1      0      0      0      0      0      0      0      0      0
+## 4     4      0      0      0      0      0      0      0      0      0
+## 5     0      0      0      0      0      0      0      0      0      0
+## 6     0      0      0      0      0      0      0      0      0      0
+# Create a 28*28 matrix with pixel color values
+m = matrix(unlist(train[10,-1]),nrow = 28,byrow = T)
+# Plot that matrix
+image(m,col=grey.colors(255))
+
+
+
+This image needs to be rotated to the right. I will rotate the matrix and plot a bunch of images.
+rotate <- function(x) t(apply(x, 2, rev)) # reverses (rotates the matrix)
+
+# Plot a bunch of images
+par(mfrow=c(2,3))
+lapply(1:6, 
+    function(x) image(
+                    rotate(matrix(unlist(train[x,-1]),nrow = 28,byrow = T)),
+                    col=grey.colors(255),
+                    xlab=train[x,1]
+                )
+)
+
+
+## [[1]]
+## NULL
+## 
+## [[2]]
+## NULL
+## 
+## [[3]]
+## NULL
+## 
+## [[4]]
+## NULL
+## 
+## [[5]]
+## NULL
+## 
+## [[6]]
+## NULL
+par(mfrow=c(1,1)) # set plot options back to default
+library(h2o)
+## Loading required package: statmod
+## 
+## ----------------------------------------------------------------------
+## 
+## Your next step is to start H2O and get a connection object (named
+## 'localH2O', for example):
+##     > localH2O = h2o.init()
+## 
+## For H2O package documentation, ask for help:
+##     > ??h2o
+## 
+## After starting H2O, you can use the Web UI at http://localhost:54321
+## For more information visit http://docs.h2o.ai
+## 
+## ----------------------------------------------------------------------
+## start a local h2o cluster
+localH2O = h2o.init(#max_mem_size = '6g', # use 6GB of RAM of *GB available
+                    nthreads = -1) # use all CPUs (8 on my personal computer :3)
+## 
+## H2O is not running yet, starting it now...
+## Warning in .h2o.startJar(nthreads = nthreads, max_memory = max_mem_size, : You have a 32-bit version of Java. H2O works best with 64-bit Java.
+## Please download the latest Java SE JDK 7 from the following URL:
+## http://www.oracle.com/technetwork/java/javase/downloads/jdk7-downloads-1880260.html
+## 
+## Note:  In case of errors look at the following log files:
+##     C:\Users\NJ_NEE~1\AppData\Local\Temp\RtmpkFuuvK/h2o_Nj_neeraj_started_from_r.out
+##     C:\Users\NJ_NEE~1\AppData\Local\Temp\RtmpkFuuvK/h2o_Nj_neeraj_started_from_r.err
+## 
+## 
+## .Successfully connected to http://127.0.0.1:54321/ 
+## 
+## R is connected to the H2O cluster: 
+##     H2O cluster uptime:         2 seconds 912 milliseconds 
+##     H2O cluster version:        3.2.0.3 
+##     H2O cluster name:           H2O_started_from_R_Nj_neeraj_fut736 
+##     H2O cluster total nodes:    1 
+##     H2O cluster total memory:   0.97 GB 
+##     H2O cluster total cores:    4 
+##     H2O cluster allowed cores:  4 
+##     H2O cluster healthy:        TRUE
+
+Now, I just convert the train and test sets into the h2o format and set up the model. The h2o.deeplearning() function has lots of configurable arguments. For demonstration I went with a two layer neural network with 100 nodes and 0.5 dropout ratio in each. While I could specify a learning rate I decided not to because it is adaptive by default which should result in an improved accuracy score. This blog post explores the deeplearning using h2o and its many configurable options. I used it for reference. So let’s train the model.
+## MNIST data as H2O
+train[,1] = as.factor(train[,1]) # convert digit labels to factor for classification
+train_h2o = as.h2o(train)
+## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%
+test_h2o = as.h2o(test)
+## 
+  |                                                                       
+  |                                                                 |   0%
+  |                                                                       
+  |=================================================================| 100%
+## set timer
+s <- proc.time()
+
+## train model
+model =
+  h2o.deeplearning(x = 2:785,  # column numbers for predictors
+                   y = 1,   # column number for label
+                   training_frame = train_h2o, # data in H2O format
+                   activation = "RectifierWithDropout", # algorithm
+                   input_dropout_ratio = 0.2, # % of inputs dropout
+                   hidden_dropout_ratios = c(0.5,0.5), # % for nodes dropout
+                   balance_classes = TRUE, 
+                   hidden = c(100,100), # two layers of 100 nodes
+                   momentum_stable = 0.99,
+                   nesterov_accelerated_gradient = T, # use it for speed
+                   epochs = 15) # no. of epochs
+## 
+  |                                                                       
+  |                                                                 |   0%
+## Warning in .h2o.validateModelParameters(conn, algo, param_values, h2oRestApiVersion): Dropping constant columns: pixel0, pixel1, pixel2, pixel3, pixel4, pixel5, pixel6, pixel7, pixel8, pixel9, pixel10, pixel11, pixel16, pixel17, pixel18, pixel19, pixel20, pixel21, pixel22, pixel23, pixel24, pixel25, pixel26, pixel27, pixel28, pixel29, pixel30, pixel31, pixel52, pixel53, pixel54, pixel55, pixel56, pixel57, pixel82, pixel83, pixel84, pixel85, pixel111, pixel112, pixel139, pixel140, pixel141, pixel168, pixel196, pixel392, pixel420, pixel421, pixel448, pixel476, pixel532, pixel560, pixel644, pixel645, pixel671, pixel672, pixel673, pixel699, pixel700, pixel701, pixel727, pixel728, pixel729, pixel730, pixel731, pixel754, pixel755, pixel756, pixel757, pixel758, pixel759, pixel760, pixel780, pixel781, pixel782, pixel783.
+## 
+  |                                                                       
+  |===                                                              |   5%
+  |                                                                       
+  |======                                                           |  10%
+  |                                                                       
+  |==========                                                       |  15%
+  |                                                                       
+  |=============                                                    |  20%
+  |                                                                       
+  |================                                                 |  25%
+  |                                                                       
+  |===================                                              |  30%
+  |                                                                       
+  |======================                                           |  35%
+  |                                                                       
+  |==========================                                       |  39%
+  |                                                                       
+  |=============================                                    |  44%
+  |                                                                       
+  |================================                                 |  49%
+  |                                                                       
+  |===================================                              |  54%
+  |                                                                       
+  |=======================================                          |  59%
+  |                                                                       
+  |==========================================                       |  64%
+  |                                                                       
+  |=============================================                    |  69%
+  |                                                                       
+  |================================================                 |  74%
+  |                                                                       
+  |===================================================              |  79%
+  |                                                                       
+  |=======================================================          |  84%
+  |                                                                       
+  |==========================================================       |  89%
+  |                                                                       
+  |=============================================================    |  94%
+  |                                                                       
+  |================================================================ |  99%
+  |                                                                       
+  |=================================================================| 100%
+## print confusion matrix
+h2o.confusionMatrix(model)
+## Confusion Matrix - (vertical: actual; across: predicted): vertical: actual; across: predicted
+##           0   1    2    3    4   5    6    7    8   9  Error
+## 0       987   0    2    2    1   1    3    1    3   0 0.0130
+## 1         0 956    7    3    1   0    1    6    3   0 0.0215
+## 2         0   2  979    5    3   1    3   31    4   1 0.0486
+## 3         1   0   13  974    0   6    0   19    2   3 0.0432
+## 4         0   1   11    0  997   1    8    7    0  14 0.0404
+## 5         5   0    6   24    2 962   12    6    4   1 0.0587
+## 6         5   1   10    0    1   2  986   18    0   0 0.0362
+## 7         1   1    8    0    2   1    1  953    0   1 0.0155
+## 8         2   5   10    4    2   3    3    6 1011   5 0.0381
+## 9         2   2    1    8   15   5    0   39    3 898 0.0771
+## Totals 1003 968 1047 1020 1024 982 1017 1086 1030 923 0.0393
+##                  Rate
+## 0      =   13 / 1,000
+## 1      =     21 / 977
+## 2      =   50 / 1,029
+## 3      =   44 / 1,018
+## 4      =   42 / 1,039
+## 5      =   60 / 1,022
+## 6      =   37 / 1,023
+## 7      =     15 / 968
+## 8      =   40 / 1,051
+## 9      =     75 / 973
+## Totals = 397 / 10,100
+
+After training the model we can look at the confusion matrix. The total error after 15 epochs is around 0.0395784 which translates to 1 - 0.0395784 = 0.9604216 accuracy score. The training process lasted for -42.966 seconds. Good performance within a short period of time.
+## print time elapsed
+s - proc.time()
+##    user  system elapsed 
+##   -6.22   -0.22 -359.95
+
+Now, let’s predict the test data and save the results.
+## classify test set
+h2o_y_test <- h2o.predict(model, test_h2o)
+
+## convert H2O format into data frame and  save as csv
+df_y_test = as.data.frame(h2o_y_test)
+df_y_test = data.frame(ImageId = seq(1,length(df_y_test$predict)), Label = df_y_test$predict)
+write.csv(df_y_test, file = "submission-r-h2o.csv", row.names=F)
+
+## shut down virutal H2O cluster
+h2o.shutdown(prompt = F)
+## [1] TRUE
