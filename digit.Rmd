@@ -1,15 +1,19 @@
 
-digitrecognizer
+##digitrecognizer
 
 Neeraj
-
 December 27, 2015
+
+```{r}
 #install.packages("readr")
 library(readr)
 ## Warning: package 'readr' was built under R version 3.2.3
 train <- read_csv("train.csv")
 test <- read_csv("test.csv")
 head(train[1:10])
+```
+
+```
 ##   label pixel0 pixel1 pixel2 pixel3 pixel4 pixel5 pixel6 pixel7 pixel8
 ## 1     1      0      0      0      0      0      0      0      0      0
 ## 2     0      0      0      0      0      0      0      0      0      0
@@ -22,10 +26,13 @@ m = matrix(unlist(train[10,-1]),nrow = 28,byrow = T)
 # Plot that matrix
 image(m,col=grey.colors(255))
 
+```
 
 
 This image needs to be rotated to the right. I will rotate the matrix and plot a bunch of images.
 rotate <- function(x) t(apply(x, 2, rev)) # reverses (rotates the matrix)
+
+```{r}
 
 # Plot a bunch of images
 par(mfrow=c(2,3))
@@ -37,6 +44,10 @@ lapply(1:6,
                 )
 )
 
+```
+
+
+```
 
 ## [[1]]
 ## NULL
@@ -55,6 +66,11 @@ lapply(1:6,
 ## 
 ## [[6]]
 ## NULL
+
+```
+
+```{r}
+
 par(mfrow=c(1,1)) # set plot options back to default
 library(h2o)
 ## Loading required package: statmod
@@ -98,7 +114,13 @@ localH2O = h2o.init(#max_mem_size = '6g', # use 6GB of RAM of *GB available
 ##     H2O cluster allowed cores:  4 
 ##     H2O cluster healthy:        TRUE
 
+```
+
+
 Now, I just convert the train and test sets into the h2o format and set up the model. The h2o.deeplearning() function has lots of configurable arguments. For demonstration I went with a two layer neural network with 100 nodes and 0.5 dropout ratio in each. While I could specify a learning rate I decided not to because it is adaptive by default which should result in an improved accuracy score. This blog post explores the deeplearning using h2o and its many configurable options. I used it for reference. So let’s train the model.
+
+```{r}
+
 ## MNIST data as H2O
 train[,1] = as.factor(train[,1]) # convert digit labels to factor for classification
 train_h2o = as.h2o(train)
@@ -203,14 +225,29 @@ h2o.confusionMatrix(model)
 ## 8      =   40 / 1,051
 ## 9      =     75 / 973
 ## Totals = 397 / 10,100
+```
+
+
 
 After training the model we can look at the confusion matrix. The total error after 15 epochs is around 0.0395784 which translates to 1 - 0.0395784 = 0.9604216 accuracy score. The training process lasted for -42.966 seconds. Good performance within a short period of time.
+
+
+
 ## print time elapsed
+
+```{r}
+
 s - proc.time()
 ##    user  system elapsed 
 ##   -6.22   -0.22 -359.95
 
+```
+
+
 Now, let’s predict the test data and save the results.
+
+```{r}
+
 ## classify test set
 h2o_y_test <- h2o.predict(model, test_h2o)
 
@@ -222,3 +259,4 @@ write.csv(df_y_test, file = "submission-r-h2o.csv", row.names=F)
 ## shut down virutal H2O cluster
 h2o.shutdown(prompt = F)
 ## [1] TRUE
+```
